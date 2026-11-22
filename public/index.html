@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101827">
+<title>Do'st AI</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1422;--panel:#151f31;--muted:#9eabc0;--line:#2a3850;--accent:#7c9cff;--text:#f4f7ff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#0d1422,#121d31);color:var(--text);font:16px system-ui,Arial,sans-serif;min-height:100vh}
+button,input,textarea,select{font:inherit}button{cursor:pointer;border:0;border-radius:12px;padding:11px 15px;background:var(--accent);color:#081126;font-weight:700}
+button.secondary{background:#26344d;color:var(--text)}button:disabled{opacity:.5;cursor:not-allowed}
+.wrap{max-width:1000px;margin:auto;padding:18px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
+h1{font-size:25px;margin:0}.sub{color:var(--muted);font-size:13px}.panel{background:#151f31eF;border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 12px 35px #0003}
+#login{max-width:420px;margin:12vh auto}.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.field{width:100%;background:#0d1728;color:var(--text);border:1px solid var(--line);padding:12px;border-radius:12px;outline:none}
+select{background:#0d1728;color:var(--text);border:1px solid var(--line);padding:10px;border-radius:10px}
+#app{display:none}.chat{height:min(62vh,620px);overflow:auto;padding:4px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:88%;padding:12px 14px;border-radius:16px;white-space:pre-wrap;line-height:1.5;overflow-wrap:anywhere}
+.user{align-self:flex-end;background:#314b80}.ai{align-self:flex-start;background:#202d43;border:1px solid #30415d}
+.composer{display:flex;gap:8px;margin-top:12px}.composer textarea{resize:vertical;min-height:52px;max-height:150px}
+.tools{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}.status{font-size:12px;color:var(--muted)}
+#err{color:#ff9d9d;white-space:pre-wrap;margin-top:10px}.hint{color:var(--muted);font-size:13px;line-height:1.5}
+@media(max-width:600px){.wrap{padding:12px}.panel{padding:12px}.msg{max-width:95%}.composer{flex-direction:column}.composer button{width:100%}}
+</style></head>
+<body>
+<div class="wrap">
+  <div id="login" class="panel">
+    <h1>🤝 Do'st AI</h1><p class="sub">Shaxsiy AI yordamchingizga kirish</p>
+    <input id="password" class="field" type="password" placeholder="Maxfiy parol">
+    <button id="loginBtn" style="width:100%;margin-top:10px">Kirish</button><div id="loginErr" id="err"></div>
+    <p class="hint">Bu sahifa shaxsiy parol bilan himoyalangan. Parolni hech kimga bermang.</p>
+  </div>
+  <main id="app">
+    <header class="top"><div><h1>🤝 Do'st AI</h1><div class="sub">O'zbekcha suhbat • Hikoyalar • Ovoz</div></div><button class="secondary" id="logout">Chiqish</button></header>
+    <section class="panel">
+      <div class="tools">
+        <div class="row"><label class="sub" for="provider">AI:</label><select id="provider"><option value="openai">OpenAI</option><option value="gemini">Gemini</option></select><span class="status" id="providerStatus"></span></div>
+        <div class="row"><button class="secondary" id="story">✨ Hikoya yoz</button><button class="secondary" id="voice">🎙️ Ovoz</button><button class="secondary" id="speak">🔊 O'qib ber</button><button class="secondary" id="clear">Tozalash</button></div>
+      </div>
+      <div id="chat" class="chat" aria-live="polite"></div>
+      <div class="composer"><textarea id="prompt" class="field" placeholder="Do'st AI ga yozing..." rows="2"></textarea><button id="send">Yuborish ➤</button></div>
+      <div id="err"></div>
+      <p class="hint">Ovozli kiritish brauzer va qurilma qo'llab-quvvatlashiga bog'liq. Suhbat tarixi ushbu brauzer qurilmasida saqlanadi.</p>
+    </section>
+  </main>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+let history=JSON.parse(localStorage.getItem("dostai_history")||"[]");
+let lastAnswer="";
+function save(){localStorage.setItem("dostai_history",JSON.stringify(history.slice(-60)))}
+function render(){const box=$("chat");box.innerHTML="";history.forEach(m=>{const d=document.createElement("div");d.className="msg "+(m.role==="user"?"user":"ai");d.textContent=m.content;box.appendChild(d)});box.scrollTop=box.scrollHeight}
+function add(role,content){history.push({role,content});save();render()}
+function error(t){$("err").textContent=t||""}
+async function status(){const r=await fetch("/api/status");const s=await r.json();$("providerStatus").textContent=`OpenAI ${s.providers.openai?"✓":"—"} | Gemini ${s.providers.gemini?"✓":"—"}`}
+async function check(){try{const r=await fetch("/api/status");const s=await r.json();if(s.loggedIn){$("login").style.display="none";$("app").style.display="block";render();status()} }catch(e){}}
+$("loginBtn").onclick=async()=>{ $("loginErr").textContent="";try{const r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:$("password").value})});const d=await r.json();if(!r.ok)throw Error(d.error);$("login").style.display="none";$("app").style.display="block";render();status()}catch(e){$("loginErr").textContent=e.message}};
+$("password").addEventListener("keydown",e=>{if(e.key==="Enter")$("loginBtn").click()});
+$("logout").onclick=async()=>{await fetch("/api/logout",{method:"POST"});$("app").style.display="none";$("login").style.display="block";$("password").value=""};
+async function send(text){text=(text||$("prompt").value).trim();if(!text)return;error("");$("prompt").value="";add("user",text);$("send").disabled=true;
+try{const msgs=history.slice(-20);const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({provider:$("provider").value,messages:msgs})});const d=await r.json();if(!r.ok)throw Error(d.error||"Xatolik");lastAnswer=d.answer;add("assistant",d.answer)}catch(e){error(e.message)}finally{$("send").disabled=false}}
+$("send").onclick=()=>send();$("prompt").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}});
+$("clear").onclick=()=>{if(confirm("Suhbat tarixini tozalaysizmi?")){history=[];save();render();error("")}};
+$("story").onclick=()=>{const genre=prompt("Hikoya janri: romantik, sarguzasht, fantastika, drama...","sarguzasht");if(genre)send(`${genre} janrida qiziqarli, mazmunli hikoya yoz. O'zbek tilida bo'lsin.`)};
+$("speak").onclick=()=>{if(!lastAnswer){error("Avval AI javob bersin.");return}if(!("speechSynthesis"in window)){error("Bu brauzer ovoz chiqarishni qo'llamaydi.");return}speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(lastAnswer);u.lang="uz-UZ";speechSynthesis.speak(u)};
+let recognition=null;$("voice").onclick=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){error("Ovozli kiritish bu brauzerda yo'q. Chrome brauzerida sinab ko'ring.");return}if(recognition){recognition.stop();recognition=null;$("voice").textContent="🎙️ Ovoz";return}recognition=new SR();recognition.lang="uz-UZ";recognition.interimResults=false;recognition.onresult=e=>{$("prompt").value=e.results[0][0].transcript};recognition.onerror=e=>error("Ovoz xatosi: "+e.error);recognition.onend=()=>{$("voice").textContent="🎙️ Ovoz";recognition=null};$("voice").textContent="⏹ To'xtatish";recognition.start()};
+check();
+</script></body></html>
